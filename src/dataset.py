@@ -9,7 +9,6 @@ from pathlib import Path
 
 from typing_extensions import override
 
-
 class SegmentationDataset(Dataset):
     def __init__(self, images, labels, num_classes=55):
         """
@@ -30,7 +29,7 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         image = self.images[idx]
-        image = 2 * image.unsqueeze(0) / 255.0  # Normalize to [0,1]
+        image = image.unsqueeze(0) / 255.0  # Normalize to [0,1]
         label = self.labels[idx]
 
         return image, label
@@ -47,7 +46,7 @@ class SegmentationDatasetRGB(SegmentationDataset):
     @override
     def __getitem__(self, idx):
         img, label = super().__getitem__(idx)
-        return torch.tile(img, (3, self.H, self.W)), label
+        return img.repeat(3, 1, 1), label
 
 
 def load_img_dataset(dataset_dir):

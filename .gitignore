@@ -1,0 +1,8 @@
+*.zip
+*.csv
+
+__pycache__/
+
+train-images/
+test-images/
+venv/
