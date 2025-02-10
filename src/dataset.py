@@ -7,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from pathlib import Path
 
+from typing_extensions import override
 
 
 class SegmentationDataset(Dataset):
@@ -30,7 +31,7 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         image = self.images[idx]
-        image = 2* image.unsqueeze(0) / 255.0 -1  # Normalize to [-1,1]
+        image = 2* image.unsqueeze(0) / 255.0  # Normalize to [0,1]
         label = self.labels[idx]
 
         return image, label
@@ -42,8 +43,12 @@ class SegmentationDataset(Dataset):
     #    return image, label
 
 
+class SegmentationDatasetRGB(SegmentationDataset):
 
-
+    @override
+    def __getitem__(self, idx):
+        img, label = super().__getitem__(idx)
+        return torch.tile(img, (1,self.H, self.W)), label
 
 
 
