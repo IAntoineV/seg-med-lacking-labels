@@ -2,11 +2,11 @@ import torch
 import cv2
 import numpy as np
 import pandas as pd
-
+from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from pathlib import Path
-
+from PIL import Image
 from typing_extensions import override
 
 
@@ -31,7 +31,7 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         image = self.images[idx]
-        image = 2* image.unsqueeze(0) / 255.0  # Normalize to [0,1]
+        image =  image.unsqueeze(0) / 255.0  # Normalize to [0,1]
         label = self.labels[idx]
 
         return image, label
@@ -73,5 +73,50 @@ def get_data(test_size=0.2,device = "cpu"):
     dataset_train = SegmentationDataset(X_train, y_train)
     dataset_test = SegmentationDataset(X_test, y_test)
     return dataset_train, dataset_test
+
+
+
+
+
+
+class SegmentationDatasetDisk(Dataset):
+    def __init__(self, image_dir, label_csv, transform=None):
+        self.image_dir = Path(image_dir)
+        self.transform = transform
+        self.image_files = sorted(self.image_dir.glob("*.png"), key=lambda x: int(x.stem))
+        self.labels = pd.read_csv(label_csv, index_col=0).T.to_numpy()
+
+    def __len__(self):
+        return len(self.image_files)
+
+    def __getitem__(self, idx):
+        image_path = self.image_files[idx]
+        image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+        # Convert grayscale to PIL image
+        image = Image.fromarray(image, mode="L")  # "L" mode is for grayscale
+
+        # Convert grayscale to RGB (3 channels)
+        image = image.convert("RGB")  # Converts (H, W) → (H, W, 3)
+        h,w = image.size
+        if self.transform:
+            image = self.transform(image)
+
+
+        return image , torch.tensor(self.labels[idx], dtype=torch.float32).reshape(h, w)
+
+
+def get_dataloader_disk(image_dir, label_csv, batch_size=32, test_size=0.2, num_workers=4, transform=transforms.ToTensor()):
+    dataset = SegmentationDatasetDisk(image_dir, label_csv, transform=transform)
+    train_size = int((1 - test_size) * len(dataset))
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+
+    return train_loader, test_loader
+
+# Example usage:
+# train_loader, test_loader = get_dataloader("./train-images", "y_train.csv")
 
 
