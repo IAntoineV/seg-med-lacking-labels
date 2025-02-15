@@ -19,23 +19,15 @@ from transformers import (
     SamPromptEncoderConfig,
 )
 
-alpha = 0.3
-num_classes = 55
-batch_size = 16
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model_configs = {
-    "deeplabv3_mobilenet_v3_large": "torchvision.models.segmentation.deeplabv3_mobilenet_v3_large",
-    "deeplabv3_resnet50": "torchvision.models.segmentation.deeplabv3_resnet50",
-}
 
-def main(model_name="deeplabv3_resnet50"):
+def main(model_name="deeplabv3_resnet50", batch_size=16):
     # Load datasets
     data_train, data_test = get_data(test_size=0.05)
 
     dataloader = DataLoader(
-        data_train, batch_size=batch_size, shuffle=True, num_workers=2
+        data_train, batch_size=batch_size, shuffle=True, num_workers=2, drop_last=True
     )
-    data_test_loader = DataLoader(data_test, batch_size=batch_size, num_workers=2)
+    data_test_loader = DataLoader(data_test, batch_size=batch_size, num_workers=2, drop_last=True)
 
     # Load DeepLab model
     cfg = model_configs[model_name]
@@ -78,7 +70,9 @@ def main(model_name="deeplabv3_resnet50"):
     processor = SamImageProcessor(do_rescale=False, do_resize=False)
 
     # Set training parameters
-    num_trainable_params = sum(p.numel() for p in dlv3_model.parameters() if p.requires_grad)
+    num_trainable_params = sum(
+        p.numel() for p in dlv3_model.parameters() if p.requires_grad
+    )
     print(f"Total trainable parameters for DeepLab: {num_trainable_params:,}")
 
     def dice_criterion(outputs, labels):
@@ -99,8 +93,7 @@ def main(model_name="deeplabv3_resnet50"):
         dlv3_model.train()
         running_loss = 0.0
         it = 0
-        for images, labels in tqdm(dataloader):
-
+        for j, (images, labels) in tqdm(enumerate(dataloader)):
             images = images.to(device)  # (B, 3, H, W)
             labels = labels.to(device)  # (B, H, W) with class indices
             optimizer.zero_grad()
@@ -112,16 +105,24 @@ def main(model_name="deeplabv3_resnet50"):
 
             with torch.no_grad():
 
-                inputs = processor(images.permute(0, 2, 3, 1).cpu().numpy(), return_tensors="pt").to(device)
+                inputs = processor(
+                    images.permute(0, 2, 3, 1).cpu().numpy(), return_tensors="pt"
+                ).to(device)
                 inputs["input_masks"] = deep_masks.float()
-                sam_outputs = sam_model(**inputs)["pred_masks"][:, :, 0, :, :]  # (B, num_masks, H, W)
+                sam_outputs = sam_model(**inputs)["pred_masks"][
+                    :, :, 0, :, :
+                ]  # (B, num_masks, H, W)
                 refined_masks = torch.argmax(sam_outputs, dim=1)  # (B, H, W)
 
-            refined_masks_one_hot = to_one_hot(refined_masks, num_classes).to(device).type(torch.float32)  # (B, num_classes, H, W)
+            refined_masks_one_hot = (
+                to_one_hot(refined_masks, num_classes).to(device).type(torch.float32)
+            )  # (B, num_classes, H, W)
 
             loss_dlv3 = criterion(dlv3_outputs, labels)  # Loss for DeepLabV3 outputs
-            loss_sam = criterion(refined_masks_one_hot, labels)  # Loss for SAM refined masks
-            loss = alpha * loss_dlv3 + (1 - alpha) * loss_sam  
+            loss_sam = criterion(
+                refined_masks_one_hot, labels
+            )  # Loss for SAM refined masks
+            loss = alpha * loss_dlv3 + (1 - alpha) * loss_sam
             loss.backward()
             optimizer.step()
 
@@ -135,6 +136,7 @@ def main(model_name="deeplabv3_resnet50"):
         with torch.no_grad():
             dice_cum = 0
             for x_test, y_test in data_test_loader:
+                load_batch_size = x_test.size(0)
                 x_test = x_test.to(device)
                 y_test = y_test.to(device)
 
@@ -142,18 +144,41 @@ def main(model_name="deeplabv3_resnet50"):
                 deep_masks = torch.argmax(dlv3_outputs, dim=1)  # (B, H, W)
                 deep_masks = deep_masks.unsqueeze(1)  # (B, 1, H, W)
 
-                inputs = processor(images.permute(0, 2, 3, 1).cpu().numpy(), return_tensors="pt").to(device)
-                inputs["input_masks"] = deep_masks.float()  # Pass DeepLabV3 masks to SAM
+                inputs = processor(
+                    images.permute(0, 2, 3, 1).cpu().numpy(), return_tensors="pt"
+                ).to(device)
+                inputs["input_masks"] = (
+                    deep_masks.float()
+                )  # Pass DeepLabV3 masks to SAM
 
-                sam_outputs = sam_model(**inputs)["pred_masks"][:, :, 0, :, :]  # (B, num_masks, H, W)
+                sam_outputs = sam_model(**inputs)["pred_masks"][
+                    :, :, 0, :, :
+                ]  # (B, num_masks, H, W)
                 refined_masks = torch.argmax(sam_outputs, dim=1)  # (B, H, W)
-                refined_masks_one_hot = to_one_hot(refined_masks, num_classes).to(device).type(torch.float32)  # (B, num_classes, H, W)
-                dice_score = dice_criterion(refined_masks_one_hot, y_test) 
-                dice_cum += (1 - dice_score.item()) * x_test.size(0)
+                refined_masks_one_hot = (
+                    to_one_hot(refined_masks, num_classes)
+                    .to(device)
+                    .type(torch.float32)
+                )  # (B, num_classes, H, W)
+
+                # Calculate Dice score, ignoring padded elements
+                dice_score = dice_criterion(
+                    refined_masks_one_hot[:batch_size], y_test[:batch_size]
+                )
+                dice_cum += (1 - dice_score.item()) * batch_size
 
             print(f"Validation Dice: {dice_cum / len(data_test):.4f}")
 
     print("Training complete.")
 
+
 if __name__ == "__main__":
-    main(model_name="deeplabv3_mobilenet_v3_large")
+    alpha = 0.3
+    num_classes = 55
+    batch_size = 16
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model_configs = {
+        "deeplabv3_mobilenet_v3_large": "torchvision.models.segmentation.deeplabv3_mobilenet_v3_large",
+        "deeplabv3_resnet50": "torchvision.models.segmentation.deeplabv3_resnet50",
+    }
+    main(model_name="deeplabv3_mobilenet_v3_large", batch_size=batch_size)
