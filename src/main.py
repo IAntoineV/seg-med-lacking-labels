@@ -100,6 +100,7 @@ def main(model_name="deeplabv3_resnet50"):
         running_loss = 0.0
         it = 0
         for images, labels in tqdm(dataloader):
+
             images = images.to(device)  # (B, 3, H, W)
             labels = labels.to(device)  # (B, H, W) with class indices
             optimizer.zero_grad()
@@ -147,7 +148,7 @@ def main(model_name="deeplabv3_resnet50"):
                 sam_outputs = sam_model(**inputs)["pred_masks"][:, :, 0, :, :]  # (B, num_masks, H, W)
                 refined_masks = torch.argmax(sam_outputs, dim=1)  # (B, H, W)
                 refined_masks_one_hot = to_one_hot(refined_masks, num_classes).to(device).type(torch.float32)  # (B, num_classes, H, W)
-                dice_score = dice_criterion(refined_masks, y_test) 
+                dice_score = dice_criterion(refined_masks_one_hot, y_test) 
                 dice_cum += (1 - dice_score.item()) * x_test.size(0)
 
             print(f"Validation Dice: {dice_cum / len(data_test):.4f}")
