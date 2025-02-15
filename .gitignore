@@ -1,5 +1,7 @@
 *.zip
 *.csv
+.vscode/
+src/cp/
 
 __pycache__/
 
