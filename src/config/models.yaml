@@ -1,0 +1,11 @@
+defaults:
+  - model: deeplabv3_mobilenet_v3_large
+
+model:
+  deeplabv3_mobilenet_v3_large:
+    class_path: torchvision.models.segmentation.deeplabv3_mobilenet_v3_large
+    pretrained: false
+
+  deeplabv3_resnet50:
+    class_path: torchvision.models.segmentation.deeplabv3_resnet50
+    pretrained: false
