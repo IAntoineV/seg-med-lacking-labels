@@ -181,4 +181,4 @@ if __name__ == "__main__":
         "deeplabv3_mobilenet_v3_large": "torchvision.models.segmentation.deeplabv3_mobilenet_v3_large",
         "deeplabv3_resnet50": "torchvision.models.segmentation.deeplabv3_resnet50",
     }
-    main(model_name="deeplabv3_mobilenet_v3_large", batch_size=batch_size)
+    main(model_name="deeplabv3_resnet50", batch_size=batch_size)
