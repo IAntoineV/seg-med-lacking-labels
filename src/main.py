@@ -32,7 +32,7 @@ model_configs = {
 }
 
 def main(model_name="deeplabv3_mobilenet_v3_large"):
-    data_train, data_test = get_data(test_size=0.05)
+    data_train, data_test = get_data(test_size=0.05, rgb=True)
 
     dataloader = DataLoader(
         data_train, batch_size=batch_size, shuffle=True, num_workers=2
@@ -102,7 +102,6 @@ def main(model_name="deeplabv3_mobilenet_v3_large"):
             optimizer.zero_grad()
             if model_name == "sam_transformer":
                 boxes = dlv3_model(images)["out"]
-                print(boxes)
                 inputs = processor(images, segmentation_maps=boxes, return_tensors="pt").to(device)
                 outputs = model(**inputs)["pred_masks"]
 

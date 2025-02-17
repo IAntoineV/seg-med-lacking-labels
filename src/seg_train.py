@@ -22,7 +22,7 @@ data_test_loader = DataLoader(data_test, batch_size=batch_size, num_workers=2)
 
 # Use SMP's U-Net with a ResNet34 encoder pretrained on ImageNet.
 # This model accepts 1-channel input and outputs predictions for 55 classes.
-model = smp.Unet(
+model = smp.DeepLabV3Plus(
     encoder_name="resnet34",  # Pretrained ResNet34 encoder
     encoder_weights="imagenet",  # Use ImageNet pretrained weights
     in_channels=1,  # Grayscale images of shape (1,256,256)
