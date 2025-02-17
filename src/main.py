@@ -63,7 +63,7 @@ def main(model_name="deeplabv3_mobilenet_v3_large"):
             do_rescale=False,
             do_resize=False,
         )
-        
+
         cfg = model_configs["deeplabv3_mobilenet_v3_large"]
         module_name, class_name = cfg.rsplit(".", 1)
         dlv3_model_class = getattr(importlib.import_module(module_name), class_name)
@@ -107,7 +107,7 @@ def main(model_name="deeplabv3_mobilenet_v3_large"):
                 outputs = model(**inputs)["pred_masks"]
 
             else:
-                model(images)["out"]
+                outputs = model(images)["out"]
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -125,7 +125,7 @@ def main(model_name="deeplabv3_mobilenet_v3_large"):
                         device
                     )
                     output = model(**inputs)["pred_masks"]
-                    
+
                 else:
                     output = model(x_test.to(device))["out"]
 
@@ -135,4 +135,4 @@ def main(model_name="deeplabv3_mobilenet_v3_large"):
     print("Training complete.")
 
 if __name__ == "__main__":
-    main(model_name="deeplabv3_resnet50")
+    main(model_name="sam_transformer")

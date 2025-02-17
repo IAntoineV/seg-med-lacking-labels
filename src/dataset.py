@@ -67,7 +67,7 @@ def train_labels():
     return labels_train.to_numpy()
 
 
-def get_data(test_size=0.2, device="cpu"):
+def get_data(test_size=0.2, device="cpu", rgb=False):
     data_dir = Path("./")
     x = load_img_dataset(data_dir / "train-images")
     y = train_labels()
@@ -75,8 +75,12 @@ def get_data(test_size=0.2, device="cpu"):
     X_train, X_test, y_train, y_test = train_test_split(
         x, y, test_size=test_size, random_state=42
     )
-    dataset_train = SegmentationDatasetRGB(X_train, y_train)
-    dataset_test = SegmentationDatasetRGB(X_test, y_test)
+    dataset_train = SegmentationDataset(X_train, y_train)
+    dataset_test = SegmentationDataset(X_test, y_test)
+
+    if rgb:
+        dataset_train = SegmentationDatasetRGB(X_train, y_train)
+        dataset_test = SegmentationDatasetRGB(X_test, y_test)
     return dataset_train, dataset_test
 
 class SegmentationDatasetDisk(Dataset):

@@ -26,7 +26,8 @@ model = smp.Unet(
     encoder_name="resnet34",  # Pretrained ResNet34 encoder
     encoder_weights="imagenet",  # Use ImageNet pretrained weights
     in_channels=1,  # Grayscale images of shape (1,256,256)
-    classes=num_classes  # 55 segmentation classes
+    classes=num_classes,  # 55 segmentation classes
+    activation="logsoftmax"
 ).to(device)
 
 # Freeze the encoder to prevent overfitting with very few data.
