@@ -40,13 +40,13 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
     # Load SAM model and processor
     sam_checkpoint = "./cp/sam_vit_b_01ec64.pth"  # Path to SAM checkpoint
     vision_config = SamVisionConfig(
-        num_hidden_layers=1,
-        num_attention_heads=4,
+        # num_hidden_layers=1,
+        # num_attention_heads=4,
         hidden_size=768,
     )
     mask_decoder_config = SamMaskDecoderConfig(
-        num_hidden_layers=1,
-        num_attention_heads=4,
+        # num_hidden_layers=1,
+        # num_attention_heads=4,
     )
     prompt_encoder_config = SamPromptEncoderConfig()
     config = SamConfig(
@@ -54,8 +54,8 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
         mask_decoder_config=mask_decoder_config,
         prompt_encoder_config=prompt_encoder_config,
     )
-    sam_model = SamModel(config).to(device)
     checkpoint = torch.load(sam_checkpoint)
+    sam_model = SamModel(config).to(device)
 
     # Adjust the keys to match Hugging Face's SamModel
     new_checkpoint = {}
@@ -67,7 +67,7 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
         new_checkpoint[new_key] = value
 
     # Load the adjusted checkpoint into the model
-    sam_model.load_state_dict(new_checkpoint, strict=False)  # Load SAM checkpoint
+    sam_model.load_state_dict(checkpoint, strict=False)  # Load SAM checkpoint
     sam_model.eval()  # Ensure SAM model is in evaluation mode
     processor = SamImageProcessor(do_rescale=False, do_resize=False)
 
@@ -116,10 +116,10 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
                         return_tensors="pt",
                     ).to(device)
                     sam_outputs = sam_model(**inputs)["pred_masks"][
-                         :, 0, :, :
-                    ]  # (num_masks, H, W)
-                    refined_masks = torch.argmax(sam_outputs, dim=1)  # (1, H, W)
-                    list_of_masks.append(refined_masks[0, : , :])
+                         :, :, 1, :, :
+                    ]  # (1, num_masks, H, W)
+                    refined_masks = torch.argmax(sam_outputs, dim=1)  # (1, 1, H, W)
+                    list_of_masks.append(refined_masks[0])
                 refined_masks = torch.stack(list_of_masks, dim=0)
             refined_masks_one_hot = (
                 to_one_hot(refined_masks, num_classes).to(device).type(torch.float32)
@@ -158,10 +158,10 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
                         return_tensors="pt",
                     ).to(device)
                     sam_outputs = sam_model(**inputs)["pred_masks"][
-                         :, 0, :, :
+                        :, :, 1, :, :
                     ]  # (B, num_masks, H, W)
                     refined_masks = torch.argmax(sam_outputs, dim=1)  # (B, H, W)
-                    list_of_masks.append(refined_masks[0, :, :])
+                    list_of_masks.append(refined_masks[0])
                 refined_masks = torch.stack(list_of_masks, dim=0)
                 refined_masks_one_hot = (
                     to_one_hot(refined_masks, num_classes)
