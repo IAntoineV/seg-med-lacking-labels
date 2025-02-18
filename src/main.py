@@ -27,7 +27,9 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
     dataloader = DataLoader(
         data_train, batch_size=batch_size, shuffle=True, num_workers=2, drop_last=True
     )
-    data_test_loader = DataLoader(data_test, batch_size=batch_size, num_workers=2, drop_last=True)
+    data_test_loader = DataLoader(
+        data_test, batch_size=batch_size, num_workers=2, drop_last=True
+    )
 
     # Load DeepLab model
     cfg = model_configs[model_name]
@@ -94,6 +96,8 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
         running_loss = 0.0
         it = 0
         for j, (images, labels) in tqdm(enumerate(dataloader)):
+            if j > 4:
+                break
             images = images.to(device)  # (B, 3, H, W)
             labels = labels.to(device)  # (B, H, W) with class indices
             optimizer.zero_grad()
@@ -104,20 +108,22 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
             deep_masks = deep_masks.unsqueeze(1)  # (B, 1, H, W)
 
             with torch.no_grad():
-
-                inputs = processor(
-                    images.permute(0, 2, 3, 1).cpu().numpy(), return_tensors="pt"
-                ).to(device)
-                inputs["input_masks"] = deep_masks.float()
-                sam_outputs = sam_model(**inputs)["pred_masks"][
-                    :, :, 0, :, :
-                ]  # (B, num_masks, H, W)
-                refined_masks = torch.argmax(sam_outputs, dim=1)  # (B, H, W)
-
+                list_of_masks = []
+                for i in range(deep_masks.size(0)):
+                    inputs = processor(
+                        images[i].permute(1, 2, 0).cpu().numpy(),
+                        segmentation_maps=deep_masks[i].float().cpu().numpy(),
+                        return_tensors="pt",
+                    ).to(device)
+                    sam_outputs = sam_model(**inputs)["pred_masks"][
+                         :, 0, :, :
+                    ]  # (num_masks, H, W)
+                    refined_masks = torch.argmax(sam_outputs, dim=1)  # (1, H, W)
+                    list_of_masks.append(refined_masks[0, : , :])
+                refined_masks = torch.stack(list_of_masks, dim=0)
             refined_masks_one_hot = (
                 to_one_hot(refined_masks, num_classes).to(device).type(torch.float32)
             )  # (B, num_classes, H, W)
-
             loss_dlv3 = criterion(dlv3_outputs, labels)  # Loss for DeepLabV3 outputs
             loss_sam = criterion(
                 refined_masks_one_hot, labels
@@ -144,17 +150,19 @@ def main(model_name="deeplabv3_resnet50", batch_size=16):
                 deep_masks = torch.argmax(dlv3_outputs, dim=1)  # (B, H, W)
                 deep_masks = deep_masks.unsqueeze(1)  # (B, 1, H, W)
 
-                inputs = processor(
-                    images.permute(0, 2, 3, 1).cpu().numpy(), return_tensors="pt"
-                ).to(device)
-                inputs["input_masks"] = (
-                    deep_masks.float()
-                )  # Pass DeepLabV3 masks to SAM
-
-                sam_outputs = sam_model(**inputs)["pred_masks"][
-                    :, :, 0, :, :
-                ]  # (B, num_masks, H, W)
-                refined_masks = torch.argmax(sam_outputs, dim=1)  # (B, H, W)
+                list_of_masks = []
+                for i in range(deep_masks.size(0)):
+                    inputs = processor(
+                        images[i].permute(1, 2, 0).cpu().numpy(),
+                        segmentation_maps=deep_masks[i].float().cpu().numpy(),
+                        return_tensors="pt",
+                    ).to(device)
+                    sam_outputs = sam_model(**inputs)["pred_masks"][
+                         :, 0, :, :
+                    ]  # (B, num_masks, H, W)
+                    refined_masks = torch.argmax(sam_outputs, dim=1)  # (B, H, W)
+                    list_of_masks.append(refined_masks[0, :, :])
+                refined_masks = torch.stack(list_of_masks, dim=0)
                 refined_masks_one_hot = (
                     to_one_hot(refined_masks, num_classes)
                     .to(device)
@@ -181,4 +189,4 @@ if __name__ == "__main__":
         "deeplabv3_mobilenet_v3_large": "torchvision.models.segmentation.deeplabv3_mobilenet_v3_large",
         "deeplabv3_resnet50": "torchvision.models.segmentation.deeplabv3_resnet50",
     }
-    main(model_name="deeplabv3_resnet50", batch_size=batch_size)
+    main(model_name="deeplabv3_mobilenet_v3_large", batch_size=batch_size)
