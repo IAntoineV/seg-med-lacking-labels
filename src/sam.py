@@ -4,10 +4,11 @@ from ultralytics import YOLO
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MODEL_TYPE = "vit_b"
-CHECKPOINT_PATH = "src\cp\sam_vit_b_01ec64.pth"
+CHECKPOINT_PATH = "./cp/sam_vit_b_01ec64.pth"
 
 class YOLOv8SAM(torch.nn.Module):
-    def __init__(self, model_name):
+    def __init__(self, model_name="yolov8n.pt"):
+        super(YOLOv8SAM, self).__init__()
         sam = sam_model_registry[MODEL_TYPE](checkpoint=CHECKPOINT_PATH).to(device=DEVICE)
         self.mask_predictor = SamPredictor(sam)
         self.yolo = YOLO(model_name)
@@ -23,7 +24,7 @@ class YOLOv8SAM(torch.nn.Module):
             detections[0].boxes.xyxy, [image.shape[-2], image.shape[-1]]
         )
         self.mask_predictor.set_image(image)
-        masks, _, _ = self.mask_predictor.predict_torch(
+        masks, _, _ = self .mask_predictor.predict_torch(
             boxes=transformed_boxes,
             multimask_output=False,
             point_coords=None,

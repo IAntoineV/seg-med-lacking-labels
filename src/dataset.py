@@ -68,7 +68,7 @@ def train_labels():
 
 
 def get_data(test_size=0.2, device="cpu", rgb=False):
-    data_dir = Path("./")
+    data_dir = Path("./data/")
     x = load_img_dataset(data_dir / "train-images")
     y = train_labels()
 
